@@ -238,6 +238,8 @@ static void Task_NewGameBirchSpeech_CreateNuzlockeYesNo(u8);
 static void Task_NewGameBirchSpeech_ProcessNuzlockeYesNo(u8);
 static void Task_NewGameBirchSpeech_CreateHardWhiteoutYesNo(u8);
 static void Task_NewGameBirchSpeech_ProcessHardWhiteoutYesNo(u8);
+static void Task_NewGameBirchSpeech_CreateNoBattleItemsYesNo(u8);
+static void Task_NewGameBirchSpeech_ProcessNoBattleItemsYesNo(u8);
 static void NewGameBirchSpeech_AskInfiniteCandies(u8);
 static void Task_NewGameBirchSpeech_CreateInfiniteCandiesYesNo(u8);
 static void Task_NewGameBirchSpeech_ProcessInfiniteCandiesYesNo(u8);
@@ -1304,6 +1306,7 @@ static void HighlightSelectedMainMenuItem(enum PartyMenuType menuType, u8 select
 #define tMaySpriteId data[11]
 #define tNuzlocke data[12]
 #define tHardWhiteout data[13]
+#define tNoBattleItems data[14]
 
 static void Task_NewGameBirchSpeech_Init(u8 taskId)
 {
@@ -1739,6 +1742,7 @@ static void Task_NewGameBirchSpeech_WaitForSpriteFadeInAndTextPrinter(u8 taskId)
 
 static const u8 sText_Birch_Nuzlocke[] = _("Before you go… Would you like to\ntake on a NUZLOCKE challenge?");
 static const u8 sText_Birch_HardWhiteout[] = _("If all your POKéMON faint, should\nyour save be deleted?");
+static const u8 sText_Birch_NoBattleItems[] = _("Should BAG items be banned in\nbattle, apart from POKé BALLS?");
 static const u8 sText_Birch_InfiniteCandies[] = _("And would you like a RARE CANDY\nthat never runs out?");
 
 static void Task_NewGameBirchSpeech_AskNuzlocke(u8 taskId)
@@ -1767,6 +1771,7 @@ static void Task_NewGameBirchSpeech_ProcessNuzlockeYesNo(u8 taskId)
     PlaySE(SE_SELECT);
     gTasks[taskId].tNuzlocke = (input == 0);
     gTasks[taskId].tHardWhiteout = FALSE;
+    gTasks[taskId].tNoBattleItems = FALSE;
     if (!gTasks[taskId].tNuzlocke)
     {
         NewGameBirchSpeech_AskInfiniteCandies(taskId);
@@ -1795,6 +1800,29 @@ static void Task_NewGameBirchSpeech_ProcessHardWhiteoutYesNo(u8 taskId)
         return;
     PlaySE(SE_SELECT);
     gTasks[taskId].tHardWhiteout = (input == 0);
+    NewGameBirchSpeech_ClearWindow(0);
+    StringExpandPlaceholders(gStringVar4, sText_Birch_NoBattleItems);
+    AddTextPrinterForMessage(TRUE);
+    gTasks[taskId].func = Task_NewGameBirchSpeech_CreateNoBattleItemsYesNo;
+}
+
+static void Task_NewGameBirchSpeech_CreateNoBattleItemsYesNo(u8 taskId)
+{
+    if (!RunTextPrintersAndIsPrinter0Active())
+    {
+        CreateYesNoMenuParameterized(2, 1, 0xF3, 0xDF, 2, 15);
+        gTasks[taskId].func = Task_NewGameBirchSpeech_ProcessNoBattleItemsYesNo;
+    }
+}
+
+static void Task_NewGameBirchSpeech_ProcessNoBattleItemsYesNo(u8 taskId)
+{
+    s8 input = Menu_ProcessInputNoWrapClearOnChoose();
+
+    if (input == MENU_NOTHING_CHOSEN)
+        return;
+    PlaySE(SE_SELECT);
+    gTasks[taskId].tNoBattleItems = (input == 0);
     NewGameBirchSpeech_AskInfiniteCandies(taskId);
 }
 
@@ -1822,7 +1850,7 @@ static void Task_NewGameBirchSpeech_ProcessInfiniteCandiesYesNo(u8 taskId)
     if (input == MENU_NOTHING_CHOSEN)
         return;
     PlaySE(SE_SELECT);
-    Nuzlocke_SetPendingRules(gTasks[taskId].tNuzlocke, gTasks[taskId].tHardWhiteout, input == 0);
+    Nuzlocke_SetPendingRules(gTasks[taskId].tNuzlocke, gTasks[taskId].tHardWhiteout, gTasks[taskId].tNoBattleItems, input == 0);
     gSprites[gTasks[taskId].tBirchSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
     gSprites[gTasks[taskId].tLotadSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
     NewGameBirchSpeech_StartFadeOutTarget1InTarget2(taskId, 2);

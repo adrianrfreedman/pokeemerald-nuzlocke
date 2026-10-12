@@ -6,6 +6,7 @@ A playable Pokémon Emerald hack with an opt-in Nuzlocke challenge, built on `po
 - Shiny Pokémon can always be caught.
 - Fainted Pokémon are moved to two locked graveyard boxes, "GRAVES 1" and "GRAVES 2", which hold 60 Pokémon between them. Their held items go back to the bag.
 - Whiteout is either soft or hard. A soft whiteout brings in the first Pokémon from the PC, or reloads your last save if the PC is empty. A hard whiteout deletes your save.
+- Bag items can optionally be banned in battle. Poké Balls still work.
 - There is an optional Rare Candy that never runs out. Rare Candies stop working at the level cap of the next Gym Leader.
 
 The rules live in `src/nuzlocke.c`, and the tests are in `test/nuzlocke.c`.

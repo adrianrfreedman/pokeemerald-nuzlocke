@@ -32,13 +32,15 @@ static EWRAM_DATA bool8 sCanCatch = FALSE;
 static EWRAM_DATA bool8 sRunIsOver = FALSE;
 
 static const u8 sText_RunOverSaveLoaded[] = _("Your NUZLOCKE run is over…\nYour last save will be loaded.\p");
+static const u8 sText_NoBattleItems[] = _("NUZLOCKE rules: only POKé BALLS\ncan be used in battle!\p");
 static const u8 sText_RunOverSaveDeleted[] = _("Your NUZLOCKE run is over…\nYour save has been deleted.\p");
 
 // Birch's speech runs before NewGameInitData clears SaveBlock3, so the choice is held here until then
-void Nuzlocke_SetPendingRules(bool32 enabled, bool32 hardWhiteout, bool32 infiniteCandies)
+void Nuzlocke_SetPendingRules(bool32 enabled, bool32 hardWhiteout, bool32 noBattleItems, bool32 infiniteCandies)
 {
     sPendingRules.enabled = enabled;
     sPendingRules.hardWhiteout = hardWhiteout;
+    sPendingRules.noBattleItems = noBattleItems;
     sPendingRules.infiniteCandies = infiniteCandies;
 }
 
@@ -63,6 +65,18 @@ bool32 Nuzlocke_IsEnabled(void)
 bool32 Nuzlocke_HasInfiniteCandies(void)
 {
     return gSaveBlock3Ptr->nuzlocke.infiniteCandies;
+}
+
+bool32 Nuzlocke_CanUseItemInBattle(enum Item itemId)
+{
+    return !Nuzlocke_IsEnabled()
+        || !gSaveBlock3Ptr->nuzlocke.noBattleItems
+        || GetItemBattleUsage(itemId) == EFFECT_ITEM_THROW_BALL;
+}
+
+const u8 *Nuzlocke_GetNoBattleItemsMessage(void)
+{
+    return sText_NoBattleItems;
 }
 
 bool32 Nuzlocke_IsMapsecUsed(mapsec_u8_t mapsec)

@@ -128,12 +128,29 @@ TEST("Nuzlocke: A new game applies the rules chosen in Birch's speech")
     PARAMETRIZE { enabled = FALSE; infiniteCandies = TRUE; }
     ClearBag();
 
-    Nuzlocke_SetPendingRules(enabled, FALSE, infiniteCandies);
+    Nuzlocke_SetPendingRules(enabled, FALSE, FALSE, infiniteCandies);
     Nuzlocke_NewGame();
 
     EXPECT_EQ(Nuzlocke_IsEnabled(), enabled);
     EXPECT_EQ(Nuzlocke_HasInfiniteCandies(), infiniteCandies);
     EXPECT_EQ(CheckBagHasItem(ITEM_RARE_CANDY, 1), infiniteCandies);
+}
+
+TEST("Nuzlocke: Banning battle items still allows Poké Balls")
+{
+    bool32 enabled, noBattleItems;
+    PARAMETRIZE { enabled = TRUE; noBattleItems = TRUE; }
+    PARAMETRIZE { enabled = TRUE; noBattleItems = FALSE; }
+    PARAMETRIZE { enabled = FALSE; noBattleItems = TRUE; }
+
+    Nuzlocke_SetPendingRules(enabled, FALSE, noBattleItems, FALSE);
+    Nuzlocke_NewGame();
+
+    EXPECT(Nuzlocke_CanUseItemInBattle(ITEM_POKE_BALL));
+    EXPECT(Nuzlocke_CanUseItemInBattle(ITEM_ULTRA_BALL));
+    EXPECT_EQ(Nuzlocke_CanUseItemInBattle(ITEM_POTION), !(enabled && noBattleItems));
+    EXPECT_EQ(Nuzlocke_CanUseItemInBattle(ITEM_X_ATTACK), !(enabled && noBattleItems));
+    EXPECT_EQ(Nuzlocke_CanUseItemInBattle(ITEM_POKE_DOLL), !(enabled && noBattleItems));
 }
 
 TEST("Nuzlocke: Infinite candies use the badge level caps")
@@ -218,7 +235,7 @@ TEST("Nuzlocke: A new game names the two graveyard boxes")
     ResetPokemonStorageSystem();
     ClearBag();
 
-    Nuzlocke_SetPendingRules(TRUE, FALSE, FALSE);
+    Nuzlocke_SetPendingRules(TRUE, FALSE, FALSE, FALSE);
     Nuzlocke_NewGame();
 
     EXPECT_EQ(StringCompare(GetBoxNamePtr(GRAVEYARD_BOX), sGraves1), 0);

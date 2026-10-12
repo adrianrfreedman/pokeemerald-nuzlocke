@@ -28,6 +28,7 @@
 #include "map_name_popup.h"
 #include "menu.h"
 #include "money.h"
+#include "nuzlocke.h"
 #include "overworld.h"
 #include "palette.h"
 #include "party_menu.h"
@@ -2109,7 +2110,9 @@ static void ItemMenu_UseInBattle(u8 taskId)
         return;
 
     RemoveContextWindow();
-    if (type == ITEM_USE_BAG_MENU || (type == ITEM_USE_BATTLER && !IsDoubleBattle()))
+    if (!Nuzlocke_CanUseItemInBattle(gSpecialVar_ItemId))
+        DisplayItemMessage(taskId, FONT_NORMAL, Nuzlocke_GetNoBattleItemsMessage(), CloseItemMessage);
+    else if (type == ITEM_USE_BAG_MENU || (type == ITEM_USE_BATTLER && !IsDoubleBattle()))
         ItemUseInBattle_BagMenu(taskId);
     else if (type == ITEM_USE_PARTY_MENU || (type == ITEM_USE_BATTLER && IsDoubleBattle()))
         ItemUseInBattle_PartyMenu(taskId);

@@ -56,6 +56,7 @@
 #include "constants/game_stat.h"
 #include "constants/items.h"
 #include "constants/songs.h"
+#include "nuzlocke.h"
 #include "constants/trainers.h"
 #include "constants/trainer_hill.h"
 #include "constants/weather.h"
@@ -278,6 +279,8 @@ static void CreateBattleStartTask(enum BattleTransition transition, u16 song)
 
     gTasks[taskId].tTransition = transition;
     PlayMapChosenOrBattleBGM(song);
+    if (!(gBattleTypeFlags & (BATTLE_TYPE_LINK | BATTLE_TYPE_TRAINER | BATTLE_TYPE_FIRST_BATTLE | BATTLE_TYPE_CATCH_TUTORIAL | BATTLE_TYPE_FRONTIER)))
+        Nuzlocke_OnWildBattleStart(&gParties[B_TRAINER_OPPONENT_A][0]);
 }
 
 static void Task_BattleStart_Debug(u8 taskId)

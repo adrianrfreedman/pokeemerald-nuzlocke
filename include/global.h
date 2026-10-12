@@ -254,6 +254,17 @@ struct NPCFollower
 #include "constants/items.h"
 #define ITEM_FLAGS_COUNT ((ITEMS_COUNT / 8) + ((ITEMS_COUNT % 8) ? 1 : 0))
 
+#include "constants/region_map_sections.h"
+
+// Opt-in Nuzlocke rules chosen at the start of a new game, see src/nuzlocke.c
+struct NuzlockeSave
+{
+    u8 enabled:1;
+    u8 infiniteCandies:1;
+    u8 padding:6;
+    u8 usedMapsecs[ROUND_BITS_TO_BYTES(MAPSEC_COUNT)];
+};
+
 struct SaveBlock3
 {
 #if OW_USE_FAKE_RTC
@@ -272,6 +283,7 @@ struct SaveBlock3
 #if APRICORN_TREE_COUNT > 0
     u8 apricornTrees[NUM_APRICORN_TREE_BYTES];
 #endif
+    struct NuzlockeSave nuzlocke;
 }; /* max size 1624 bytes */
 
 extern struct SaveBlock3 *gSaveBlock3Ptr;

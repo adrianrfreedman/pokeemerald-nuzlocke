@@ -2,6 +2,7 @@
 #include "battle.h"
 #include "event_data.h"
 #include "caps.h"
+#include "nuzlocke.h"
 #include "pokemon.h"
 
 
@@ -22,7 +23,7 @@ u32 GetCurrentLevelCap(void)
 
     u32 i;
 
-    if (B_LEVEL_CAP_TYPE == LEVEL_CAP_FLAG_LIST)
+    if (B_LEVEL_CAP_TYPE == LEVEL_CAP_FLAG_LIST || Nuzlocke_HasInfiniteCandies())
     {
         for (i = 0; i < ARRAY_COUNT(sLevelCapFlagMap); i++)
         {

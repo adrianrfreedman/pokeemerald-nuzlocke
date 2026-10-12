@@ -18,6 +18,7 @@
 #include "list_menu.h"
 #include "mystery_event_menu.h"
 #include "naming_screen.h"
+#include "nuzlocke.h"
 #include "oak_speech.h"
 #include "option_menu.h"
 #include "overworld.h"
@@ -232,6 +233,11 @@ void CreateYesNoMenuParameterized(u8, u8, u16, u16, u8, u8);
 static void Task_NewGameBirchSpeech_SlidePlatformAway2(u8);
 static void Task_NewGameBirchSpeech_ReshowBirchLotad(u8);
 static void Task_NewGameBirchSpeech_WaitForSpriteFadeInAndTextPrinter(u8);
+static void Task_NewGameBirchSpeech_AskNuzlocke(u8);
+static void Task_NewGameBirchSpeech_CreateNuzlockeYesNo(u8);
+static void Task_NewGameBirchSpeech_ProcessNuzlockeYesNo(u8);
+static void Task_NewGameBirchSpeech_CreateInfiniteCandiesYesNo(u8);
+static void Task_NewGameBirchSpeech_ProcessInfiniteCandiesYesNo(u8);
 static void Task_NewGameBirchSpeech_AreYouReady(u8);
 static void Task_NewGameBirchSpeech_ShrinkPlayer(u8);
 static void SpriteCB_MovePlayerDownWhileShrinking(struct Sprite *);
@@ -1293,6 +1299,7 @@ static void HighlightSelectedMainMenuItem(enum PartyMenuType menuType, u8 select
 #define tLotadSpriteId data[9]
 #define tBrendanSpriteId data[10]
 #define tMaySpriteId data[11]
+#define tNuzlocke data[12]
 
 static void Task_NewGameBirchSpeech_Init(u8 taskId)
 {
@@ -1722,15 +1729,67 @@ static void Task_NewGameBirchSpeech_WaitForSpriteFadeInAndTextPrinter(u8 taskId)
         gSprites[gTasks[taskId].tBirchSpriteId].oam.objMode = ST_OAM_OBJ_NORMAL;
         gSprites[gTasks[taskId].tLotadSpriteId].oam.objMode = ST_OAM_OBJ_NORMAL;
         if (!RunTextPrintersAndIsPrinter0Active())
-        {
-            gSprites[gTasks[taskId].tBirchSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
-            gSprites[gTasks[taskId].tLotadSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
-            NewGameBirchSpeech_StartFadeOutTarget1InTarget2(taskId, 2);
-            NewGameBirchSpeech_StartFadePlatformIn(taskId, 1);
-            gTasks[taskId].tTimer = 64;
-            gTasks[taskId].func = Task_NewGameBirchSpeech_AreYouReady;
-        }
+            gTasks[taskId].func = Task_NewGameBirchSpeech_AskNuzlocke;
     }
+}
+
+static const u8 sText_Birch_Nuzlocke[] = _("Before you go… Would you like to\ntake on a NUZLOCKE challenge?");
+static const u8 sText_Birch_InfiniteCandies[] = _("And would you like a RARE CANDY\nthat never runs out?");
+
+static void Task_NewGameBirchSpeech_AskNuzlocke(u8 taskId)
+{
+    NewGameBirchSpeech_ClearWindow(0);
+    StringExpandPlaceholders(gStringVar4, sText_Birch_Nuzlocke);
+    AddTextPrinterForMessage(TRUE);
+    gTasks[taskId].func = Task_NewGameBirchSpeech_CreateNuzlockeYesNo;
+}
+
+static void Task_NewGameBirchSpeech_CreateNuzlockeYesNo(u8 taskId)
+{
+    if (!RunTextPrintersAndIsPrinter0Active())
+    {
+        CreateYesNoMenuParameterized(2, 1, 0xF3, 0xDF, 2, 15);
+        gTasks[taskId].func = Task_NewGameBirchSpeech_ProcessNuzlockeYesNo;
+    }
+}
+
+static void Task_NewGameBirchSpeech_ProcessNuzlockeYesNo(u8 taskId)
+{
+    s8 input = Menu_ProcessInputNoWrapClearOnChoose();
+
+    if (input == MENU_NOTHING_CHOSEN)
+        return;
+    PlaySE(SE_SELECT);
+    gTasks[taskId].tNuzlocke = (input == 0);
+    NewGameBirchSpeech_ClearWindow(0);
+    StringExpandPlaceholders(gStringVar4, sText_Birch_InfiniteCandies);
+    AddTextPrinterForMessage(TRUE);
+    gTasks[taskId].func = Task_NewGameBirchSpeech_CreateInfiniteCandiesYesNo;
+}
+
+static void Task_NewGameBirchSpeech_CreateInfiniteCandiesYesNo(u8 taskId)
+{
+    if (!RunTextPrintersAndIsPrinter0Active())
+    {
+        CreateYesNoMenuParameterized(2, 1, 0xF3, 0xDF, 2, 15);
+        gTasks[taskId].func = Task_NewGameBirchSpeech_ProcessInfiniteCandiesYesNo;
+    }
+}
+
+static void Task_NewGameBirchSpeech_ProcessInfiniteCandiesYesNo(u8 taskId)
+{
+    s8 input = Menu_ProcessInputNoWrapClearOnChoose();
+
+    if (input == MENU_NOTHING_CHOSEN)
+        return;
+    PlaySE(SE_SELECT);
+    Nuzlocke_SetPendingRules(gTasks[taskId].tNuzlocke, input == 0);
+    gSprites[gTasks[taskId].tBirchSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
+    gSprites[gTasks[taskId].tLotadSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
+    NewGameBirchSpeech_StartFadeOutTarget1InTarget2(taskId, 2);
+    NewGameBirchSpeech_StartFadePlatformIn(taskId, 1);
+    gTasks[taskId].tTimer = 64;
+    gTasks[taskId].func = Task_NewGameBirchSpeech_AreYouReady;
 }
 
 static void Task_NewGameBirchSpeech_AreYouReady(u8 taskId)

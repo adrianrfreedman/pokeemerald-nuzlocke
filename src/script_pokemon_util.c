@@ -16,6 +16,7 @@
 #include "overworld.h"
 #include "ow_abilities.h"
 #include "palette.h"
+#include "nuzlocke.h"
 #include "party_menu.h"
 #include "pokedex.h"
 #include "pokemon.h"
@@ -73,6 +74,7 @@ u8 ScriptGiveEgg(enum Species species)
     isEgg = TRUE;
     SetMonData(&mon, MON_DATA_IS_EGG, &isEgg);
 
+    Nuzlocke_OnGift(species);
     return GiveCapturedMonToPlayer(&mon);
 }
 
@@ -372,7 +374,10 @@ u32 ScriptGiveMonParameterized(u8 side, u8 slot, struct PokemonTemplate *monTemp
     CreateMonFromTemplate(&mon, monTemplate);
 
     if (side == B_SIDE_PLAYER)
+    {
+        Nuzlocke_OnGift(GetMonData(&mon, MON_DATA_SPECIES));
         return GiveScriptedMonToPlayer(&mon, slot);
+    }
 
     assertf(slot < PARTY_SIZE, "invalid slot: %d", slot)
     {
@@ -395,6 +400,7 @@ u32 ScriptGiveMon(enum Species species, u8 level, enum Item item)
         SetMonData(&mon, MON_DATA_HELD_ITEM, heldItem);
     }
 
+    Nuzlocke_OnGift(species);
     return GiveScriptedMonToPlayer(&mon, PARTY_SIZE);
 }
 

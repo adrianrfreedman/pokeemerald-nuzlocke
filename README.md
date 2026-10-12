@@ -1,12 +1,14 @@
 # pokeemerald-nuzlocke
 
-A playable Pokémon Emerald hack with an opt-in Nuzlocke challenge, built on `pokeemerald-expansion`. After Birch's speech, the game asks whether you want to play a Nuzlocke, and then two follow-up questions.
+A playable Pokémon Emerald hack with an opt-in Nuzlocke challenge, built on `pokeemerald-expansion`. After Birch's speech, the game asks whether you want to play a Nuzlocke, and then asks which optional rules you want.
 
 - Only the first encounter in each area can be caught. Static encounters and gifts count, and Pokémon from a family you already own don't use up the area.
 - Shiny Pokémon can always be caught.
 - Fainted Pokémon are moved to two locked graveyard boxes, "GRAVES 1" and "GRAVES 2", which hold 60 Pokémon between them. Their held items go back to the bag.
 - Whiteout is either soft or hard. A soft whiteout brings in the first Pokémon from the PC, or reloads your last save if the PC is empty. A hard whiteout deletes your save.
 - Bag items can optionally be banned in battle. Poké Balls still work.
+- Battles can optionally be locked to SET mode, so there's no free switch after a knockout.
+- Monotype is optional. You pick a type, and off-type Pokémon can't be caught, received, or evolved into, shinies included. Off-type encounters don't use up the area. Birch's bag offers three base forms of your type, with base stat totals as close as possible to the usual starters' 310.
 - There is an optional Rare Candy that never runs out. Rare Candies stop working at the level cap of the next Gym Leader.
 
 The rules live in `src/nuzlocke.c`, and the tests are in `test/nuzlocke.c`.

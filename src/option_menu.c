@@ -1,4 +1,5 @@
 #include "global.h"
+#include "nuzlocke.h"
 #include "option_menu.h"
 #include "bg.h"
 #include "gpu_regs.h"
@@ -482,7 +483,7 @@ static void BattleScene_DrawChoices(u8 selection)
 
 static u8 BattleStyle_ProcessInput(u8 selection)
 {
-    if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT))
+    if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT) && !Nuzlocke_ForcesSetMode())
     {
         selection ^= 1;
         sArrowPressed = TRUE;

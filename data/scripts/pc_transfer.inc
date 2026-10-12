@@ -45,6 +45,13 @@ EventScript_LanettesPCBoxFull::
 	return
 
 Common_EventScript_NoMoreRoomForPokemon::
+	callnative Nuzlocke_CheckTransferredSpecies
+	goto_if_eq VAR_RESULT, FALSE, Common_EventScript_NuzlockeOffType
 	msgbox gText_NoMoreRoomForPokemon, MSGBOX_DEFAULT
+	release
+	end
+
+Common_EventScript_NuzlockeOffType::
+	msgbox gText_NuzlockeOffType, MSGBOX_DEFAULT
 	release
 	end

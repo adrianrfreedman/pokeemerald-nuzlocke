@@ -7,6 +7,7 @@
 #include "international_string_util.h"
 #include "main.h"
 #include "menu.h"
+#include "nuzlocke.h"
 #include "palette.h"
 #include "pokedex.h"
 #include "pokemon.h"
@@ -351,7 +352,7 @@ u16 GetStarterPokemon(u16 chosenStarterId)
 {
     if (chosenStarterId > STARTER_MON_COUNT)
         chosenStarterId = 0;
-    return sStarterMon[chosenStarterId];
+    return Nuzlocke_GetStarter(chosenStarterId, sStarterMon[chosenStarterId]);
 }
 
 static void VblankCB_StarterChoose(void)

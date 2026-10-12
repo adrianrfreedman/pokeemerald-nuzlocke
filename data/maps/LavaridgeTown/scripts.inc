@@ -237,6 +237,9 @@ LavaridgeTown_EventScript_EggWoman::
 	goto_if_eq VAR_RESULT, NO, LavaridgeTown_EventScript_DeclineEgg
 	getpartysize
 	goto_if_eq VAR_RESULT, PARTY_SIZE, LavaridgeTown_EventScript_NoRoomForEgg
+	setvar VAR_TEMP_TRANSFERRED_SPECIES, SPECIES_WYNAUT
+	callnative Nuzlocke_CheckTransferredSpecies
+	goto_if_eq VAR_RESULT, FALSE, Common_EventScript_NuzlockeOffType
 	msgbox LavaridgeTown_Text_HopeYoullWalkPlentyWithEgg, MSGBOX_DEFAULT
 	setflag FLAG_RECEIVED_LAVARIDGE_EGG
 	playfanfare MUS_OBTAIN_ITEM

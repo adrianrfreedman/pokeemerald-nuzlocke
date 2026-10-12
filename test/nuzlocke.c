@@ -6,6 +6,7 @@
 #include "nuzlocke.h"
 #include "pokedex.h"
 #include "pokemon_storage_system.h"
+#include "starter_choose.h"
 #include "string_util.h"
 #include "constants/battle.h"
 #include "test/overworld_script.h"
@@ -128,7 +129,7 @@ TEST("Nuzlocke: A new game applies the rules chosen in Birch's speech")
     PARAMETRIZE { enabled = FALSE; infiniteCandies = TRUE; }
     ClearBag();
 
-    Nuzlocke_SetPendingRules(enabled, FALSE, FALSE, infiniteCandies);
+    Nuzlocke_SetPendingRules((struct NuzlockeSave){ .enabled = enabled, .infiniteCandies = infiniteCandies });
     Nuzlocke_NewGame();
 
     EXPECT_EQ(Nuzlocke_IsEnabled(), enabled);
@@ -143,7 +144,7 @@ TEST("Nuzlocke: Banning battle items still allows Poké Balls")
     PARAMETRIZE { enabled = TRUE; noBattleItems = FALSE; }
     PARAMETRIZE { enabled = FALSE; noBattleItems = TRUE; }
 
-    Nuzlocke_SetPendingRules(enabled, FALSE, noBattleItems, FALSE);
+    Nuzlocke_SetPendingRules((struct NuzlockeSave){ .enabled = enabled, .noBattleItems = noBattleItems });
     Nuzlocke_NewGame();
 
     EXPECT(Nuzlocke_CanUseItemInBattle(ITEM_POKE_BALL));
@@ -151,6 +152,98 @@ TEST("Nuzlocke: Banning battle items still allows Poké Balls")
     EXPECT_EQ(Nuzlocke_CanUseItemInBattle(ITEM_POTION), !(enabled && noBattleItems));
     EXPECT_EQ(Nuzlocke_CanUseItemInBattle(ITEM_X_ATTACK), !(enabled && noBattleItems));
     EXPECT_EQ(Nuzlocke_CanUseItemInBattle(ITEM_POKE_DOLL), !(enabled && noBattleItems));
+}
+
+TEST("Nuzlocke: SET mode is forced only when chosen")
+{
+    bool32 enabled, setMode;
+    PARAMETRIZE { enabled = TRUE; setMode = TRUE; }
+    PARAMETRIZE { enabled = TRUE; setMode = FALSE; }
+    PARAMETRIZE { enabled = FALSE; setMode = TRUE; }
+    gSaveBlock2Ptr->optionsBattleStyle = OPTIONS_BATTLE_STYLE_SHIFT;
+
+    Nuzlocke_SetPendingRules((struct NuzlockeSave){ .enabled = enabled, .setMode = setMode });
+    Nuzlocke_NewGame();
+
+    EXPECT_EQ(Nuzlocke_ForcesSetMode(), enabled && setMode);
+    EXPECT_EQ((u32)gSaveBlock2Ptr->optionsBattleStyle, (enabled && setMode) ? OPTIONS_BATTLE_STYLE_SET : OPTIONS_BATTLE_STYLE_SHIFT);
+}
+
+static void StartMonotype(enum Type type)
+{
+    StartNuzlocke(TRUE);
+    gSaveBlock3Ptr->nuzlocke.monotype = type;
+}
+
+TEST("Nuzlocke: Monotype off-type encounters can't be caught and don't use up the area")
+{
+    bool32 isShiny;
+    PARAMETRIZE { isShiny = FALSE; }
+    PARAMETRIZE { isShiny = TRUE; }
+    StartMonotype(TYPE_WATER);
+
+    Encounter(SPECIES_ZIGZAGOON, isShiny);
+    EXPECT(!Nuzlocke_CanCatch());
+    EXPECT(!Nuzlocke_IsMapsecUsed(MAPSEC_ROUTE_101));
+
+    Encounter(SPECIES_WINGULL, FALSE);
+    EXPECT(Nuzlocke_CanCatch());
+    EXPECT(Nuzlocke_IsMapsecUsed(MAPSEC_ROUTE_101));
+}
+
+TEST("Nuzlocke: Monotype off-type gifts are refused and don't use up the area")
+{
+    StartMonotype(TYPE_WATER);
+    ZeroPlayerPartyMons();
+
+    RUN_OVERWORLD_SCRIPT(
+        givemon SPECIES_CASTFORM, 25
+    );
+    EXPECT_EQ(gSpecialVar_Result, MON_CANT_GIVE);
+    EXPECT_EQ(GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES), SPECIES_NONE);
+    EXPECT(!Nuzlocke_IsMapsecUsed(MAPSEC_ROUTE_101));
+
+    RUN_OVERWORLD_SCRIPT(
+        giveegg SPECIES_WYNAUT
+    );
+    EXPECT_EQ(GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES), SPECIES_NONE);
+
+    RUN_OVERWORLD_SCRIPT(
+        givemon SPECIES_LOTAD, 5
+    );
+    EXPECT_EQ(GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES), SPECIES_LOTAD);
+}
+
+TEST("Nuzlocke: Monotype blocks evolving into an off-type Pokémon")
+{
+    enum Type type;
+    enum Species target;
+    PARAMETRIZE { type = TYPE_GROUND; target = SPECIES_NONE; }
+    PARAMETRIZE { type = TYPE_BUG; target = SPECIES_NINJASK; }
+    PARAMETRIZE { type = TYPE_NONE; target = SPECIES_NINJASK; }
+    struct Pokemon mon;
+    StartMonotype(type);
+
+    CreateRandomMon(&mon, SPECIES_NINCADA, 20);
+    EXPECT_EQ(GetEvolutionTargetSpecies(&mon, EVO_MODE_NORMAL, ITEM_NONE, NULL, NULL, CHECK_EVO), target);
+}
+
+TEST("Nuzlocke: Monotype starters all have the chosen type")
+{
+    for (enum Type type = TYPE_NORMAL; type <= TYPE_FAIRY; type++)
+    {
+        if (type == TYPE_MYSTERY)
+            continue;
+        StartMonotype(type);
+        for (u32 i = 0; i < 3; i++)
+        {
+            enum Species species = GetStarterPokemon(i);
+            EXPECT(GetSpeciesType(species, 0) == type || GetSpeciesType(species, 1) == type);
+            EXPECT_EQ(GetSpeciesPreEvolution(species), SPECIES_NONE);
+        }
+    }
+    StartMonotype(TYPE_NONE);
+    EXPECT_EQ(GetStarterPokemon(0), SPECIES_TREECKO);
 }
 
 TEST("Nuzlocke: Infinite candies use the badge level caps")
@@ -235,7 +328,7 @@ TEST("Nuzlocke: A new game names the two graveyard boxes")
     ResetPokemonStorageSystem();
     ClearBag();
 
-    Nuzlocke_SetPendingRules(TRUE, FALSE, FALSE, FALSE);
+    Nuzlocke_SetPendingRules((struct NuzlockeSave){ .enabled = TRUE });
     Nuzlocke_NewGame();
 
     EXPECT_EQ(StringCompare(GetBoxNamePtr(GRAVEYARD_BOX), sGraves1), 0);

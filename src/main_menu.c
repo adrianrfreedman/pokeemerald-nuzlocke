@@ -1,5 +1,6 @@
 #include "global.h"
 #include "trainer_pokemon_sprites.h"
+#include "battle_main.h"
 #include "bg.h"
 #include "constants/rgb.h"
 #include "constants/songs.h"
@@ -236,13 +237,7 @@ static void Task_NewGameBirchSpeech_WaitForSpriteFadeInAndTextPrinter(u8);
 static void Task_NewGameBirchSpeech_AskNuzlocke(u8);
 static void Task_NewGameBirchSpeech_CreateNuzlockeYesNo(u8);
 static void Task_NewGameBirchSpeech_ProcessNuzlockeYesNo(u8);
-static void Task_NewGameBirchSpeech_CreateHardWhiteoutYesNo(u8);
-static void Task_NewGameBirchSpeech_ProcessHardWhiteoutYesNo(u8);
-static void Task_NewGameBirchSpeech_CreateNoBattleItemsYesNo(u8);
-static void Task_NewGameBirchSpeech_ProcessNoBattleItemsYesNo(u8);
-static void NewGameBirchSpeech_AskInfiniteCandies(u8);
-static void Task_NewGameBirchSpeech_CreateInfiniteCandiesYesNo(u8);
-static void Task_NewGameBirchSpeech_ProcessInfiniteCandiesYesNo(u8);
+static void Task_NewGameBirchSpeech_PickMonotype(u8);
 static void Task_NewGameBirchSpeech_AreYouReady(u8);
 static void Task_NewGameBirchSpeech_ShrinkPlayer(u8);
 static void SpriteCB_MovePlayerDownWhileShrinking(struct Sprite *);
@@ -1304,9 +1299,9 @@ static void HighlightSelectedMainMenuItem(enum PartyMenuType menuType, u8 select
 #define tLotadSpriteId data[9]
 #define tBrendanSpriteId data[10]
 #define tMaySpriteId data[11]
-#define tNuzlocke data[12]
-#define tHardWhiteout data[13]
-#define tNoBattleItems data[14]
+#define tNuzlockeAnswers data[12]
+#define tMonotype data[13]
+#define tNuzlockeQuestion data[14]
 
 static void Task_NewGameBirchSpeech_Init(u8 taskId)
 {
@@ -1740,17 +1735,42 @@ static void Task_NewGameBirchSpeech_WaitForSpriteFadeInAndTextPrinter(u8 taskId)
     }
 }
 
-static const u8 sText_Birch_Nuzlocke[] = _("Before you go… Would you like to\ntake on a NUZLOCKE challenge?");
-static const u8 sText_Birch_HardWhiteout[] = _("If all your POKéMON faint, should\nyour save be deleted?");
-static const u8 sText_Birch_NoBattleItems[] = _("Should BAG items be banned in\nbattle, apart from POKé BALLS?");
-static const u8 sText_Birch_InfiniteCandies[] = _("And would you like a RARE CANDY\nthat never runs out?");
+enum NuzlockeQuestion
+{
+    NUZLOCKE_Q_ENABLED,
+    NUZLOCKE_Q_HARD_WHITEOUT,
+    NUZLOCKE_Q_NO_BATTLE_ITEMS,
+    NUZLOCKE_Q_SET_MODE,
+    NUZLOCKE_Q_MONOTYPE,
+    NUZLOCKE_Q_INFINITE_CANDIES,
+};
+
+static const u8 *const sNuzlockeQuestions[] =
+{
+    [NUZLOCKE_Q_ENABLED]          = COMPOUND_STRING("Before you go… Would you like to\ntake on a NUZLOCKE challenge?"),
+    [NUZLOCKE_Q_HARD_WHITEOUT]    = COMPOUND_STRING("If all your POKéMON faint, should\nyour save be deleted?"),
+    [NUZLOCKE_Q_NO_BATTLE_ITEMS]  = COMPOUND_STRING("Should BAG items be banned in\nbattle, apart from POKé BALLS?"),
+    [NUZLOCKE_Q_SET_MODE]         = COMPOUND_STRING("Should battles use SET mode, with\nno free switch after a knockout?"),
+    [NUZLOCKE_Q_MONOTYPE]         = COMPOUND_STRING("Would you like to use POKéMON\nof only one type?"),
+    [NUZLOCKE_Q_INFINITE_CANDIES] = COMPOUND_STRING("And would you like a RARE CANDY\nthat never runs out?"),
+};
+
+static const u8 sText_Birch_PickMonotype[] = _("Which type? Press A to choose.\n{LEFT_ARROW} {STR_VAR_1} {RIGHT_ARROW}");
+
+static void NewGameBirchSpeech_AskNuzlockeQuestion(u8 taskId, enum NuzlockeQuestion question)
+{
+    gTasks[taskId].tNuzlockeQuestion = question;
+    NewGameBirchSpeech_ClearWindow(0);
+    StringExpandPlaceholders(gStringVar4, sNuzlockeQuestions[question]);
+    AddTextPrinterForMessage(TRUE);
+    gTasks[taskId].func = Task_NewGameBirchSpeech_CreateNuzlockeYesNo;
+}
 
 static void Task_NewGameBirchSpeech_AskNuzlocke(u8 taskId)
 {
-    NewGameBirchSpeech_ClearWindow(0);
-    StringExpandPlaceholders(gStringVar4, sText_Birch_Nuzlocke);
-    AddTextPrinterForMessage(TRUE);
-    gTasks[taskId].func = Task_NewGameBirchSpeech_CreateNuzlockeYesNo;
+    gTasks[taskId].tNuzlockeAnswers = 0;
+    gTasks[taskId].tMonotype = TYPE_NONE;
+    NewGameBirchSpeech_AskNuzlockeQuestion(taskId, NUZLOCKE_Q_ENABLED);
 }
 
 static void Task_NewGameBirchSpeech_CreateNuzlockeYesNo(u8 taskId)
@@ -1762,101 +1782,90 @@ static void Task_NewGameBirchSpeech_CreateNuzlockeYesNo(u8 taskId)
     }
 }
 
-static void Task_NewGameBirchSpeech_ProcessNuzlockeYesNo(u8 taskId)
-{
-    s8 input = Menu_ProcessInputNoWrapClearOnChoose();
-
-    if (input == MENU_NOTHING_CHOSEN)
-        return;
-    PlaySE(SE_SELECT);
-    gTasks[taskId].tNuzlocke = (input == 0);
-    gTasks[taskId].tHardWhiteout = FALSE;
-    gTasks[taskId].tNoBattleItems = FALSE;
-    if (!gTasks[taskId].tNuzlocke)
-    {
-        NewGameBirchSpeech_AskInfiniteCandies(taskId);
-        return;
-    }
-    NewGameBirchSpeech_ClearWindow(0);
-    StringExpandPlaceholders(gStringVar4, sText_Birch_HardWhiteout);
-    AddTextPrinterForMessage(TRUE);
-    gTasks[taskId].func = Task_NewGameBirchSpeech_CreateHardWhiteoutYesNo;
-}
-
-static void Task_NewGameBirchSpeech_CreateHardWhiteoutYesNo(u8 taskId)
-{
-    if (!RunTextPrintersAndIsPrinter0Active())
-    {
-        CreateYesNoMenuParameterized(2, 1, 0xF3, 0xDF, 2, 15);
-        gTasks[taskId].func = Task_NewGameBirchSpeech_ProcessHardWhiteoutYesNo;
-    }
-}
-
-static void Task_NewGameBirchSpeech_ProcessHardWhiteoutYesNo(u8 taskId)
-{
-    s8 input = Menu_ProcessInputNoWrapClearOnChoose();
-
-    if (input == MENU_NOTHING_CHOSEN)
-        return;
-    PlaySE(SE_SELECT);
-    gTasks[taskId].tHardWhiteout = (input == 0);
-    NewGameBirchSpeech_ClearWindow(0);
-    StringExpandPlaceholders(gStringVar4, sText_Birch_NoBattleItems);
-    AddTextPrinterForMessage(TRUE);
-    gTasks[taskId].func = Task_NewGameBirchSpeech_CreateNoBattleItemsYesNo;
-}
-
-static void Task_NewGameBirchSpeech_CreateNoBattleItemsYesNo(u8 taskId)
-{
-    if (!RunTextPrintersAndIsPrinter0Active())
-    {
-        CreateYesNoMenuParameterized(2, 1, 0xF3, 0xDF, 2, 15);
-        gTasks[taskId].func = Task_NewGameBirchSpeech_ProcessNoBattleItemsYesNo;
-    }
-}
-
-static void Task_NewGameBirchSpeech_ProcessNoBattleItemsYesNo(u8 taskId)
-{
-    s8 input = Menu_ProcessInputNoWrapClearOnChoose();
-
-    if (input == MENU_NOTHING_CHOSEN)
-        return;
-    PlaySE(SE_SELECT);
-    gTasks[taskId].tNoBattleItems = (input == 0);
-    NewGameBirchSpeech_AskInfiniteCandies(taskId);
-}
-
-static void NewGameBirchSpeech_AskInfiniteCandies(u8 taskId)
+static void NewGameBirchSpeech_PrintMonotype(u8 taskId)
 {
     NewGameBirchSpeech_ClearWindow(0);
-    StringExpandPlaceholders(gStringVar4, sText_Birch_InfiniteCandies);
-    AddTextPrinterForMessage(TRUE);
-    gTasks[taskId].func = Task_NewGameBirchSpeech_CreateInfiniteCandiesYesNo;
+    StringCopy(gStringVar1, gTypesInfo[gTasks[taskId].tMonotype].name);
+    StringExpandPlaceholders(gStringVar4, sText_Birch_PickMonotype);
+    AddTextPrinterWithCustomSpeedForMessage(FALSE, 0);
 }
 
-static void Task_NewGameBirchSpeech_CreateInfiniteCandiesYesNo(u8 taskId)
+static void NewGameBirchSpeech_FinishNuzlockeQuestions(u8 taskId)
 {
-    if (!RunTextPrintersAndIsPrinter0Active())
-    {
-        CreateYesNoMenuParameterized(2, 1, 0xF3, 0xDF, 2, 15);
-        gTasks[taskId].func = Task_NewGameBirchSpeech_ProcessInfiniteCandiesYesNo;
-    }
-}
+    u32 answers = gTasks[taskId].tNuzlockeAnswers;
 
-static void Task_NewGameBirchSpeech_ProcessInfiniteCandiesYesNo(u8 taskId)
-{
-    s8 input = Menu_ProcessInputNoWrapClearOnChoose();
-
-    if (input == MENU_NOTHING_CHOSEN)
-        return;
-    PlaySE(SE_SELECT);
-    Nuzlocke_SetPendingRules(gTasks[taskId].tNuzlocke, gTasks[taskId].tHardWhiteout, gTasks[taskId].tNoBattleItems, input == 0);
+    Nuzlocke_SetPendingRules((struct NuzlockeSave){
+        .enabled = (answers >> NUZLOCKE_Q_ENABLED) & 1,
+        .hardWhiteout = (answers >> NUZLOCKE_Q_HARD_WHITEOUT) & 1,
+        .noBattleItems = (answers >> NUZLOCKE_Q_NO_BATTLE_ITEMS) & 1,
+        .setMode = (answers >> NUZLOCKE_Q_SET_MODE) & 1,
+        .monotype = gTasks[taskId].tMonotype,
+        .infiniteCandies = (answers >> NUZLOCKE_Q_INFINITE_CANDIES) & 1,
+    });
     gSprites[gTasks[taskId].tBirchSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
     gSprites[gTasks[taskId].tLotadSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
     NewGameBirchSpeech_StartFadeOutTarget1InTarget2(taskId, 2);
     NewGameBirchSpeech_StartFadePlatformIn(taskId, 1);
     gTasks[taskId].tTimer = 64;
     gTasks[taskId].func = Task_NewGameBirchSpeech_AreYouReady;
+}
+
+static void Task_NewGameBirchSpeech_ProcessNuzlockeYesNo(u8 taskId)
+{
+    s8 input = Menu_ProcessInputNoWrapClearOnChoose();
+    enum NuzlockeQuestion question = gTasks[taskId].tNuzlockeQuestion;
+
+    if (input == MENU_NOTHING_CHOSEN)
+        return;
+    PlaySE(SE_SELECT);
+    if (input == 0)
+        gTasks[taskId].tNuzlockeAnswers |= 1 << question;
+
+    if (question == NUZLOCKE_Q_INFINITE_CANDIES)
+    {
+        NewGameBirchSpeech_FinishNuzlockeQuestions(taskId);
+    }
+    else if (question == NUZLOCKE_Q_ENABLED && input != 0)
+    {
+        NewGameBirchSpeech_AskNuzlockeQuestion(taskId, NUZLOCKE_Q_INFINITE_CANDIES);
+    }
+    else if (question == NUZLOCKE_Q_MONOTYPE && input == 0)
+    {
+        gTasks[taskId].tMonotype = TYPE_NORMAL;
+        NewGameBirchSpeech_PrintMonotype(taskId);
+        gTasks[taskId].func = Task_NewGameBirchSpeech_PickMonotype;
+    }
+    else
+    {
+        NewGameBirchSpeech_AskNuzlockeQuestion(taskId, question + 1);
+    }
+}
+
+// Left and right cycle through TYPE_NORMAL to TYPE_FAIRY, skipping TYPE_MYSTERY
+static void Task_NewGameBirchSpeech_PickMonotype(u8 taskId)
+{
+    s16 *type = &gTasks[taskId].tMonotype;
+
+    if (JOY_NEW(A_BUTTON))
+    {
+        PlaySE(SE_SELECT);
+        NewGameBirchSpeech_AskNuzlockeQuestion(taskId, NUZLOCKE_Q_INFINITE_CANDIES);
+        return;
+    }
+    if (JOY_NEW(DPAD_RIGHT))
+    {
+        do { *type = *type % TYPE_FAIRY + 1; } while (*type == TYPE_MYSTERY);
+    }
+    else if (JOY_NEW(DPAD_LEFT))
+    {
+        do { *type = (*type + TYPE_FAIRY - 2) % TYPE_FAIRY + 1; } while (*type == TYPE_MYSTERY);
+    }
+    else
+    {
+        return;
+    }
+    PlaySE(SE_SELECT);
+    NewGameBirchSpeech_PrintMonotype(taskId);
 }
 
 static void Task_NewGameBirchSpeech_AreYouReady(u8 taskId)

@@ -4591,6 +4591,9 @@ enum Species GetEvolutionTargetSpecies(struct Pokemon *mon, enum EvolutionMode m
         return SPECIES_NONE;
     }
 
+    if (!Nuzlocke_IsSpeciesAllowed(targetSpecies))
+        return SPECIES_NONE;
+
     return targetSpecies;
 }
 

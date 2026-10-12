@@ -1,5 +1,6 @@
 #include "global.h"
 #include "battle.h"
+#include "event_data.h"
 #include "item.h"
 #include "nuzlocke.h"
 #include "pokedex.h"
@@ -9,6 +10,7 @@
 #include "string_util.h"
 #include "constants/battle.h"
 #include "constants/items.h"
+#include "constants/vars.h"
 
 // Rules:
 // - Only the first encounter in each map section can be caught. Wild battles,
@@ -20,6 +22,9 @@
 //   battle, and nothing can be moved in or out of it.
 // - Whiteout: soft brings in the first Pokémon from the PC (or ends the run and
 //   loads the last save if there is none), hard ends the run and deletes the save.
+// - Optional: no bag items in battle apart from Poké Balls, SET battle style, and
+//   monotype (off-type Pokémon can't be caught, received, or evolved into, and
+//   Birch's bag offers three base forms of that type with a BST near 310).
 // Infinite candies is separate: Rare Candies aren't used up.
 
 #define NUM_GRAVEYARD_BOXES 2
@@ -33,15 +38,13 @@ static EWRAM_DATA bool8 sRunIsOver = FALSE;
 
 static const u8 sText_RunOverSaveLoaded[] = _("Your NUZLOCKE run is over…\nYour last save will be loaded.\p");
 static const u8 sText_NoBattleItems[] = _("NUZLOCKE rules: only POKé BALLS\ncan be used in battle!\p");
+const u8 gText_NuzlockeOffType[] = _("NUZLOCKE rules: this POKéMON\nisn't your type!");
 static const u8 sText_RunOverSaveDeleted[] = _("Your NUZLOCKE run is over…\nYour save has been deleted.\p");
 
 // Birch's speech runs before NewGameInitData clears SaveBlock3, so the choice is held here until then
-void Nuzlocke_SetPendingRules(bool32 enabled, bool32 hardWhiteout, bool32 noBattleItems, bool32 infiniteCandies)
+void Nuzlocke_SetPendingRules(struct NuzlockeSave rules)
 {
-    sPendingRules.enabled = enabled;
-    sPendingRules.hardWhiteout = hardWhiteout;
-    sPendingRules.noBattleItems = noBattleItems;
-    sPendingRules.infiniteCandies = infiniteCandies;
+    sPendingRules = rules;
 }
 
 void Nuzlocke_NewGame(void)
@@ -53,6 +56,8 @@ void Nuzlocke_NewGame(void)
         for (u32 i = 0; i < NUM_GRAVEYARD_BOXES; i++)
             StringCopy(GetBoxNamePtr(FIRST_GRAVEYARD_BOX + i), sText_GraveyardBoxNames[i]);
     }
+    if (Nuzlocke_ForcesSetMode())
+        gSaveBlock2Ptr->optionsBattleStyle = OPTIONS_BATTLE_STYLE_SET;
     if (gSaveBlock3Ptr->nuzlocke.infiniteCandies)
         AddBagItem(ITEM_RARE_CANDY, 1);
 }
@@ -77,6 +82,56 @@ bool32 Nuzlocke_CanUseItemInBattle(enum Item itemId)
 const u8 *Nuzlocke_GetNoBattleItemsMessage(void)
 {
     return sText_NoBattleItems;
+}
+
+bool32 Nuzlocke_ForcesSetMode(void)
+{
+    return Nuzlocke_IsEnabled() && gSaveBlock3Ptr->nuzlocke.setMode;
+}
+
+bool32 Nuzlocke_IsSpeciesAllowed(enum Species species)
+{
+    enum Type type = gSaveBlock3Ptr->nuzlocke.monotype;
+
+    return !Nuzlocke_IsEnabled()
+        || type == TYPE_NONE
+        || GetSpeciesType(species, 0) == type
+        || GetSpeciesType(species, 1) == type;
+}
+
+// Gift scripts set VAR_TEMP_TRANSFERRED_SPECIES before givemon
+void Nuzlocke_CheckTransferredSpecies(void)
+{
+    gSpecialVar_Result = Nuzlocke_IsSpeciesAllowed(VarGet(VAR_TEMP_TRANSFERRED_SPECIES));
+}
+
+static const u16 sMonotypeStarters[NUMBER_OF_MON_TYPES][3] =
+{
+    [TYPE_NORMAL]   = { SPECIES_DODUO, SPECIES_SWABLU, SPECIES_GLAMEOW },
+    [TYPE_FIGHTING] = { SPECIES_MACHOP, SPECIES_TIMBURR, SPECIES_MANKEY },
+    [TYPE_FLYING]   = { SPECIES_DODUO, SPECIES_SWABLU, SPECIES_ROWLET },
+    [TYPE_POISON]   = { SPECIES_GASTLY, SPECIES_BULBASAUR, SPECIES_ODDISH },
+    [TYPE_GROUND]   = { SPECIES_GEODUDE, SPECIES_LARVITAR, SPECIES_GIBLE },
+    [TYPE_ROCK]     = { SPECIES_GEODUDE, SPECIES_LARVITAR, SPECIES_BINACLE },
+    [TYPE_BUG]      = { SPECIES_SEWADDLE, SPECIES_GRUBBIN, SPECIES_VENONAT },
+    [TYPE_GHOST]    = { SPECIES_GASTLY, SPECIES_DUSKULL, SPECIES_HONEDGE },
+    [TYPE_STEEL]    = { SPECIES_BELDUM, SPECIES_KLINK, SPECIES_TINKATINK },
+    [TYPE_FIRE]     = { SPECIES_TORCHIC, SPECIES_SCORBUNNY, SPECIES_FUECOCO },
+    [TYPE_WATER]    = { SPECIES_MUDKIP, SPECIES_SOBBLE, SPECIES_QUAXLY },
+    [TYPE_GRASS]    = { SPECIES_TREECKO, SPECIES_GROOKEY, SPECIES_SPRIGATITO },
+    [TYPE_ELECTRIC] = { SPECIES_GEODUDE_ALOLA, SPECIES_MAGNEMITE, SPECIES_JOLTIK },
+    [TYPE_PSYCHIC]  = { SPECIES_ABRA, SPECIES_MIME_JR, SPECIES_BELDUM },
+    [TYPE_ICE]      = { SPECIES_VANILLITE, SPECIES_FRIGIBAX, SPECIES_CUBCHOO },
+    [TYPE_DRAGON]   = { SPECIES_DRATINI, SPECIES_BAGON, SPECIES_GIBLE },
+    [TYPE_DARK]     = { SPECIES_DEINO, SPECIES_CARVANHA, SPECIES_GRIMER_ALOLA },
+    [TYPE_FAIRY]    = { SPECIES_MIME_JR, SPECIES_TINKATINK, SPECIES_FIDOUGH },
+};
+
+enum Species Nuzlocke_GetStarter(u32 index, enum Species defaultStarter)
+{
+    if (!Nuzlocke_IsEnabled() || gSaveBlock3Ptr->nuzlocke.monotype == TYPE_NONE)
+        return defaultStarter;
+    return sMonotypeStarters[gSaveBlock3Ptr->nuzlocke.monotype][index];
 }
 
 bool32 Nuzlocke_IsMapsecUsed(mapsec_u8_t mapsec)
@@ -120,7 +175,9 @@ void Nuzlocke_OnWildBattleStart(struct Pokemon *mon)
 {
     if (!Nuzlocke_IsEnabled())
         return;
-    if (IsMonShiny(mon))
+    if (!Nuzlocke_IsSpeciesAllowed(GetMonData(mon, MON_DATA_SPECIES)))
+        sCanCatch = FALSE;
+    else if (IsMonShiny(mon))
         sCanCatch = TRUE;
     else
         sCanCatch = TryUseAreaEncounter(GetMonData(mon, MON_DATA_SPECIES));
@@ -131,11 +188,14 @@ bool32 Nuzlocke_CanCatch(void)
     return !Nuzlocke_IsEnabled() || sCanCatch;
 }
 
-// Gifts are always given, but use up the area like any other encounter
-void Nuzlocke_OnGift(enum Species species)
+// Gifts use up the area like any other encounter; off-type ones are refused
+bool32 Nuzlocke_OnGift(enum Species species)
 {
+    if (!Nuzlocke_IsSpeciesAllowed(species))
+        return FALSE;
     if (Nuzlocke_IsEnabled())
         TryUseAreaEncounter(species);
+    return TRUE;
 }
 
 bool32 Nuzlocke_IsGraveyardBox(u32 boxId)

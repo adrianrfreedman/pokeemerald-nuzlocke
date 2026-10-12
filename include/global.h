@@ -263,7 +263,9 @@ struct NuzlockeSave
     u8 infiniteCandies:1;
     u8 hardWhiteout:1;
     u8 noBattleItems:1;
-    u8 padding:4;
+    u8 setMode:1;
+    u8 padding:3;
+    enum Type monotype; // TYPE_NONE if off
     u8 usedMapsecs[ROUND_BITS_TO_BYTES(MAPSEC_COUNT)];
 };
 

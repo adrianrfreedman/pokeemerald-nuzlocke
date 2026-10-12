@@ -1,6 +1,6 @@
-# Nuzlocke mode
+# pokeemerald-nuzlocke
 
-This is a fork of `pokeemerald-expansion` with an opt-in Nuzlocke challenge. After Birch's speech, the game asks whether you want to play a Nuzlocke, and then two follow-up questions.
+A playable Pokémon Emerald hack with an opt-in Nuzlocke challenge, built on `pokeemerald-expansion`. After Birch's speech, the game asks whether you want to play a Nuzlocke, and then two follow-up questions.
 
 - Only the first encounter in each area can be caught. Static encounters and gifts count, and Pokémon from a family you already own don't use up the area.
 - Shiny Pokémon can always be caught.

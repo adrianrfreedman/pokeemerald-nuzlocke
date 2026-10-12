@@ -11,6 +11,8 @@ bool32 Nuzlocke_CanCatch(void);
 void Nuzlocke_OnGift(enum Species species);
 bool32 Nuzlocke_IsGraveyardBox(u32 boxId);
 void Nuzlocke_BuryFaintedPartyMons(void);
-bool32 Nuzlocke_TryEndRunOnWhiteOut(void);
+void Nuzlocke_OnWhiteOut(void);
+bool32 Nuzlocke_IsRunOver(void);
+const u8 *Nuzlocke_GetRunOverMessage(void);
 
 #endif // GUARD_NUZLOCKE_H

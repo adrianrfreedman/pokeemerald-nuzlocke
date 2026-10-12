@@ -1960,8 +1960,7 @@ void CB2_WhiteOut(void)
 
     if (++gMain.state >= 120)
     {
-        if (Nuzlocke_TryEndRunOnWhiteOut())
-            return;
+        Nuzlocke_OnWhiteOut();
         FieldClearVBlankHBlankCallbacks();
         StopMapMusic();
         ResetSafariZoneFlag_();
@@ -1969,7 +1968,7 @@ void CB2_WhiteOut(void)
         ResetInitialPlayerAvatarState();
         ScriptContext_Init();
         UnlockPlayerFieldControls();
-        if (IsWhiteoutCutscene())
+        if (IsWhiteoutCutscene() || Nuzlocke_IsRunOver())
             gFieldCallback = FieldCB_RushInjuredPokemonToCenter;
         else
             gFieldCallback = FieldCB_WarpExitFadeFromBlack;

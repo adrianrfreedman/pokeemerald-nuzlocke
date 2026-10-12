@@ -238,7 +238,6 @@ TEST("Nuzlocke: The graveyard holds 60 Pokémon across two boxes")
     EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX + 1, 0, MON_DATA_SPECIES), SPECIES_ZIGZAGOON);
 }
 
-// ponytail: the reset paths (hard whiteout, soft with an empty PC) call DoSoftReset, which would restart the test runner
 TEST("Nuzlocke: A soft whiteout buries the party and brings in the first Pokémon from the PC")
 {
     struct Pokemon stored;
@@ -247,8 +246,9 @@ TEST("Nuzlocke: A soft whiteout buries the party and brings in the first Pokémo
     CreateRandomMon(&stored, SPECIES_POOCHYENA, 5);
     SetBoxMonAt(0, 3, &stored.box);
 
-    EXPECT(!Nuzlocke_TryEndRunOnWhiteOut());
+    Nuzlocke_OnWhiteOut();
 
+    EXPECT(!Nuzlocke_IsRunOver());
     EXPECT_EQ(GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES), SPECIES_POOCHYENA);
     EXPECT_EQ(GetBoxMonDataAt(0, 3, MON_DATA_SPECIES), SPECIES_NONE);
     EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 0, MON_DATA_SPECIES), SPECIES_ZIGZAGOON);
@@ -259,8 +259,23 @@ TEST("Nuzlocke: A whiteout with Pokémon that sat out the battle only buries the
 {
     StartGraveyardTest(TRUE);
 
-    EXPECT(!Nuzlocke_TryEndRunOnWhiteOut());
+    Nuzlocke_OnWhiteOut();
 
+    EXPECT(!Nuzlocke_IsRunOver());
     EXPECT_EQ(gPartiesCount[B_TRAINER_PLAYER], 1);
     EXPECT_EQ(GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES), SPECIES_WURMPLE);
+}
+
+// ponytail: the hard whiteout isn't tested here, since ClearSaveData would erase the test runner's save
+TEST("Nuzlocke: A soft whiteout with an empty PC ends the run")
+{
+    static const u8 sRunOver[] = _("Your NUZLOCKE run is over…\nYour last save will be loaded.\p");
+    StartGraveyardTest(TRUE);
+    GivePartyMon(1, SPECIES_WURMPLE, 0, ITEM_NONE);
+
+    Nuzlocke_OnWhiteOut();
+
+    EXPECT(Nuzlocke_IsRunOver());
+    EXPECT_EQ(StringCompare(Nuzlocke_GetRunOverMessage(), sRunOver), 0);
+    EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 1, MON_DATA_SPECIES), SPECIES_WURMPLE);
 }

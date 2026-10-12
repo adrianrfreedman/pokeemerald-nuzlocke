@@ -1,7 +1,6 @@
 #include "global.h"
 #include "battle.h"
 #include "item.h"
-#include "main.h"
 #include "nuzlocke.h"
 #include "pokedex.h"
 #include "pokemon.h"
@@ -19,8 +18,8 @@
 // - Shiny clause: shinies can always be caught and don't use up the area.
 // - Pokémon that faint are moved to the graveyard (the last two boxes) after the
 //   battle, and nothing can be moved in or out of it.
-// - Whiteout: soft brings in the first Pokémon from the PC (or resets to the last
-//   save if there is none), hard deletes the save.
+// - Whiteout: soft brings in the first Pokémon from the PC (or ends the run and
+//   loads the last save if there is none), hard ends the run and deletes the save.
 // Infinite candies is separate: Rare Candies aren't used up.
 
 #define NUM_GRAVEYARD_BOXES 2
@@ -30,6 +29,10 @@ static const u8 sText_GraveyardBoxNames[NUM_GRAVEYARD_BOXES][BOX_NAME_LENGTH + 1
 
 static EWRAM_DATA struct NuzlockeSave sPendingRules = {0};
 static EWRAM_DATA bool8 sCanCatch = FALSE;
+static EWRAM_DATA bool8 sRunIsOver = FALSE;
+
+static const u8 sText_RunOverSaveLoaded[] = _("Your NUZLOCKE run is over…\nYour last save will be loaded.\p");
+static const u8 sText_RunOverSaveDeleted[] = _("Your NUZLOCKE run is over…\nYour save has been deleted.\p");
 
 // Birch's speech runs before NewGameInitData clears SaveBlock3, so the choice is held here until then
 void Nuzlocke_SetPendingRules(bool32 enabled, bool32 hardWhiteout, bool32 infiniteCandies)
@@ -176,7 +179,7 @@ static void BuryFaintedPartyMons(void)
     CalculatePlayerPartyCount();
 }
 
-// Called after every battle that uses the player's own party. A whiteout is handled by Nuzlocke_TryEndRunOnWhiteOut.
+// Called after every battle that uses the player's own party. A whiteout is handled by Nuzlocke_OnWhiteOut.
 void Nuzlocke_BuryFaintedPartyMons(void)
 {
     if (Nuzlocke_IsEnabled() && !(gBattleTypeFlags & BATTLE_TYPE_FRONTIER) && CountAlivePartyMons() > 0)
@@ -208,19 +211,31 @@ static bool32 TryWithdrawFirstStoredMon(void)
     return FALSE;
 }
 
-// Buries the party on a whiteout. Returns TRUE if the run is over and the game was reset.
-bool32 Nuzlocke_TryEndRunOnWhiteOut(void)
+// Buries the party on a whiteout, and ends the run if there's no Pokémon left to carry on with.
+// The whiteout screen then shows Nuzlocke_GetRunOverMessage and resets the game.
+void Nuzlocke_OnWhiteOut(void)
 {
+    sRunIsOver = FALSE;
     if (!Nuzlocke_IsEnabled())
-        return FALSE;
+        return;
     BuryFaintedPartyMons();
     // Some Pokémon can sit out a lost battle, e.g. Steven's multi battle
     if (CountAlivePartyMons() > 0)
-        return FALSE;
+        return;
     if (!gSaveBlock3Ptr->nuzlocke.hardWhiteout && TryWithdrawFirstStoredMon())
-        return FALSE;
+        return;
+    // Deleted before the message, so switching off during it can't keep the run
     if (gSaveBlock3Ptr->nuzlocke.hardWhiteout)
         ClearSaveData();
-    DoSoftReset();
-    return TRUE;
+    sRunIsOver = TRUE;
+}
+
+bool32 Nuzlocke_IsRunOver(void)
+{
+    return sRunIsOver;
+}
+
+const u8 *Nuzlocke_GetRunOverMessage(void)
+{
+    return gSaveBlock3Ptr->nuzlocke.hardWhiteout ? sText_RunOverSaveDeleted : sText_RunOverSaveLoaded;
 }

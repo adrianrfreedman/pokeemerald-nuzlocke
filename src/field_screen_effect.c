@@ -24,6 +24,7 @@
 #include "menu.h"
 #include "mirage_tower.h"
 #include "metatile_behavior.h"
+#include "nuzlocke.h"
 #include "palette.h"
 #include "oras_dowse.h"
 #include "overworld.h"
@@ -1442,10 +1443,15 @@ static void Task_RushInjuredPokemonToCenter(u8 taskId)
         break;
     case WHITEOUT_CUTSCENE_PRINT_MSG:
     {
-        const u8 *recoveryMessage = GenerateRecoveryMessage(taskId);
+        const u8 *recoveryMessage = Nuzlocke_IsRunOver() ? Nuzlocke_GetRunOverMessage() : GenerateRecoveryMessage(taskId);
 
         if (PrintWhiteOutRecoveryMessage(taskId, recoveryMessage, 2, 8))
         {
+            if (Nuzlocke_IsRunOver())
+            {
+                DoSoftReset();
+                return;
+            }
             ObjectEventTurn(&gObjectEvents[gPlayerAvatar.objectEventId], DIR_NORTH);
             gTasks[taskId].tState = WHITEOUT_CUTSCENE_LEAVE_MSG_SCREEN;
         }

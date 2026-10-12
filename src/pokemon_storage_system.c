@@ -21,6 +21,7 @@
 #include "menu.h"
 #include "mon_markings.h"
 #include "naming_screen.h"
+#include "nuzlocke.h"
 #include "overworld.h"
 #include "palette.h"
 #include "pc_screen_effect.h"
@@ -599,6 +600,7 @@ static u8 HandleInput(void);
 static void AddBoxOptionsMenu(void);
 static u8 SetSelectionMenuTexts(void);
 static bool8 SetMenuTexts_Mon(void);
+static bool32 IsCursorInGraveyardBox(void);
 static bool8 SetMenuTexts_Item(void);
 
 // Choose box menu
@@ -6492,7 +6494,7 @@ static void SetShiftedMonData(u8 boxId, u8 position)
 static bool8 TryStorePartyMonInBox(u8 boxId)
 {
     s16 boxPosition = GetFirstFreeBoxSpot(boxId);
-    if (boxPosition == -1)
+    if (boxPosition == -1 || Nuzlocke_IsGraveyardBox(boxId))
         return FALSE;
 
     if (sIsMonBeingMoved)
@@ -6885,7 +6887,7 @@ static bool8 IsRemovingLastPartyMon(void)
 
 static bool8 CanPlaceMon(void)
 {
-    if (sIsMonBeingMoved)
+    if (sIsMonBeingMoved && !IsCursorInGraveyardBox())
     {
         if (sCursorArea == CURSOR_AREA_IN_PARTY && GetMonData(&gParties[B_TRAINER_PLAYER][sCursorPosition], MON_DATA_SPECIES) == SPECIES_NONE)
             return TRUE;
@@ -6899,7 +6901,7 @@ static bool8 CanPlaceMon(void)
 
 static bool8 CanShiftMon(void)
 {
-    if (sIsMonBeingMoved)
+    if (sIsMonBeingMoved && !IsCursorInGraveyardBox())
     {
         if (sCursorArea == CURSOR_AREA_IN_PARTY && CountPartyAliveNonEggMonsExcept(sCursorPosition) == 0)
         {
@@ -7224,7 +7226,7 @@ static u8 InBoxInput_Normal(void)
 
         if ((JOY_NEW(A_BUTTON)) && SetSelectionMenuTexts())
         {
-            if (!sAutoActionOn)
+            if (!sAutoActionOn || IsCursorInGraveyardBox())
                 return INPUT_IN_MENU;
 
             if (sStorage->boxOption != OPTION_MOVE_MONS || sIsMonBeingMoved == TRUE)
@@ -7755,9 +7757,25 @@ static u8 SetSelectionMenuTexts(void)
         return SetMenuTexts_Item();
 }
 
+static bool32 IsCursorInGraveyardBox(void)
+{
+    return sCursorArea == CURSOR_AREA_IN_BOX && Nuzlocke_IsGraveyardBox(StorageGetCurrentBox());
+}
+
 static bool8 SetMenuTexts_Mon(void)
 {
     enum Species species = GetSpeciesAtCursorPosition();
+
+    // The Nuzlocke graveyard box can be looked at, but nothing can be moved in or out
+    if (IsCursorInGraveyardBox())
+    {
+        if (species == SPECIES_NONE || sIsMonBeingMoved)
+            return FALSE;
+        SetMenuText(MENU_SUMMARY);
+        SetMenuText(MENU_MARK);
+        SetMenuText(MENU_CANCEL);
+        return TRUE;
+    }
 
     switch (sStorage->boxOption)
     {
@@ -7818,7 +7836,7 @@ static bool8 SetMenuTexts_Mon(void)
 
 static bool8 SetMenuTexts_Item(void)
 {
-    if (sStorage->displayMonSpecies == SPECIES_EGG)
+    if (sStorage->displayMonSpecies == SPECIES_EGG || IsCursorInGraveyardBox())
         return FALSE;
 
     if (!IsMovingItem())
@@ -8746,6 +8764,9 @@ static bool8 MultiMove_CanPlaceSelection(void)
     s32 columnCount = sMultiMove->minColumn + sMultiMove->columnsTotal;
     s32 rowCount = sMultiMove->minRow + sMultiMove->rowsTotal;
     u8 monArrayId = 0;
+
+    if (Nuzlocke_IsGraveyardBox(StorageGetCurrentBox()))
+        return FALSE;
 
     for (i = sMultiMove->minRow; i < rowCount; i++)
     {

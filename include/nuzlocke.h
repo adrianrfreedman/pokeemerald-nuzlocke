@@ -9,5 +9,7 @@ bool32 Nuzlocke_IsMapsecUsed(mapsec_u8_t mapsec);
 void Nuzlocke_OnWildBattleStart(struct Pokemon *mon);
 bool32 Nuzlocke_CanCatch(void);
 void Nuzlocke_OnGift(enum Species species);
+bool32 Nuzlocke_IsGraveyardBox(u32 boxId);
+void Nuzlocke_BuryFaintedPartyMons(void);
 
 #endif // GUARD_NUZLOCKE_H

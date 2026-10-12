@@ -1,9 +1,13 @@
 #include "global.h"
+#include "battle.h"
 #include "caps.h"
 #include "event_data.h"
 #include "item.h"
 #include "nuzlocke.h"
 #include "pokedex.h"
+#include "pokemon_storage_system.h"
+#include "string_util.h"
+#include "constants/battle.h"
 #include "test/overworld_script.h"
 #include "test/test.h"
 #include "constants/items.h"
@@ -140,4 +144,81 @@ TEST("Nuzlocke: Infinite candies use the badge level caps")
     FlagSet(FLAG_BADGE01_GET);
     EXPECT_EQ(GetCurrentLevelCap(), 19);
     FlagClear(FLAG_BADGE01_GET);
+}
+
+#define GRAVEYARD_BOX (TOTAL_BOXES_COUNT - 1)
+
+static void GivePartyMon(u32 slot, enum Species species, u32 hp, enum Item item)
+{
+    CreateRandomMon(&gParties[B_TRAINER_PLAYER][slot], species, 5);
+    SetMonData(&gParties[B_TRAINER_PLAYER][slot], MON_DATA_HP, &hp);
+    SetMonData(&gParties[B_TRAINER_PLAYER][slot], MON_DATA_HELD_ITEM, &item);
+}
+
+static void StartGraveyardTest(bool32 enabled)
+{
+    StartNuzlocke(enabled);
+    ResetPokemonStorageSystem();
+    ZeroPlayerPartyMons();
+    ClearBag();
+    gBattleTypeFlags = 0;
+    GivePartyMon(0, SPECIES_ZIGZAGOON, 0, ITEM_ORAN_BERRY);
+    GivePartyMon(1, SPECIES_WURMPLE, 10, ITEM_NONE);
+    CalculatePlayerPartyCount();
+}
+
+TEST("Nuzlocke: Fainted Pokémon are moved to the graveyard box after battle")
+{
+    StartGraveyardTest(TRUE);
+
+    Nuzlocke_BuryFaintedPartyMons();
+
+    EXPECT_EQ(gPartiesCount[B_TRAINER_PLAYER], 1);
+    EXPECT_EQ(GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES), SPECIES_WURMPLE);
+    EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 0, MON_DATA_SPECIES), SPECIES_ZIGZAGOON);
+    EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 0, MON_DATA_HELD_ITEM), ITEM_NONE);
+    EXPECT(CheckBagHasItem(ITEM_ORAN_BERRY, 1));
+}
+
+TEST("Nuzlocke: Nothing is buried when the rules are off, after a whiteout, or in the Battle Frontier")
+{
+    u32 setup;
+    PARAMETRIZE { setup = 0; }
+    PARAMETRIZE { setup = 1; }
+    PARAMETRIZE { setup = 2; }
+    StartGraveyardTest(setup != 0);
+    if (setup == 1)
+        GivePartyMon(1, SPECIES_WURMPLE, 0, ITEM_NONE);
+    if (setup == 2)
+        gBattleTypeFlags = BATTLE_TYPE_PYRAMID;
+
+    Nuzlocke_BuryFaintedPartyMons();
+
+    EXPECT_EQ(gPartiesCount[B_TRAINER_PLAYER], 2);
+    EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 0, MON_DATA_SPECIES), SPECIES_NONE);
+}
+
+TEST("Nuzlocke: Caught Pokémon are never sent to the graveyard box")
+{
+    struct Pokemon mon;
+    StartGraveyardTest(TRUE);
+    gPokemonStoragePtr->currentBox = GRAVEYARD_BOX;
+    VarSet(VAR_PC_BOX_TO_SEND_MON, GRAVEYARD_BOX);
+    CreateRandomMon(&mon, SPECIES_POOCHYENA, 5);
+
+    EXPECT_EQ(CopyMonToPC(&mon), MON_GIVEN_TO_PC);
+    EXPECT_NE(gSpecialVar_MonBoxId, GRAVEYARD_BOX);
+    EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 0, MON_DATA_SPECIES), SPECIES_NONE);
+}
+
+TEST("Nuzlocke: A new game names the graveyard box")
+{
+    static const u8 sGraves[] = _("GRAVES");
+    ResetPokemonStorageSystem();
+    ClearBag();
+
+    Nuzlocke_SetPendingRules(TRUE, FALSE);
+    Nuzlocke_NewGame();
+
+    EXPECT_EQ(StringCompare(GetBoxNamePtr(GRAVEYARD_BOX), sGraves), 0);
 }

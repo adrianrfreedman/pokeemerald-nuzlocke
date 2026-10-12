@@ -32,6 +32,7 @@
 #include "mail.h"
 #include "move_relearner.h"
 #include "naming_screen.h"
+#include "nuzlocke.h"
 #include "overworld.h"
 #include "ow_abilities.h"
 #include "party_menu.h"
@@ -2970,7 +2971,7 @@ u8 CopyMonToPC(struct Pokemon *mon)
 
     do
     {
-        for (boxPos = 0; boxPos < IN_BOX_COUNT; boxPos++)
+        for (boxPos = 0; boxPos < IN_BOX_COUNT && !Nuzlocke_IsGraveyardBox(boxNo); boxPos++)
         {
             struct BoxPokemon *checkingMon = GetBoxedMonPtr(boxNo, boxPos);
             if (GetBoxMonData(checkingMon, MON_DATA_SPECIES) == SPECIES_NONE)

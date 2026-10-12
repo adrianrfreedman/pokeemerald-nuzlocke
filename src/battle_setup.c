@@ -692,6 +692,12 @@ static void DowngradeBadPoison(void)
     }
 }
 
+static void UpdatePartyAfterBattle(void)
+{
+    DowngradeBadPoison();
+    Nuzlocke_BuryFaintedPartyMons();
+}
+
 static void CB2_EndWildBattle(void)
 {
     CpuFill16(0, (void *)(BG_PLTT), BG_PLTT_SIZE);
@@ -713,7 +719,7 @@ static void CB2_EndWildBattle(void)
     else
     {
         SetMainCallback2(CB2_ReturnToField);
-        DowngradeBadPoison();
+        UpdatePartyAfterBattle();
         gFieldCallback = FieldCB_ReturnToFieldNoScriptCheckMusic;
     }
 }
@@ -732,7 +738,7 @@ static void CB2_EndScriptedWildBattle(void)
     }
     else
     {
-        DowngradeBadPoison();
+        UpdatePartyAfterBattle();
         SetMainCallback2(CB2_ReturnToFieldContinueScriptPlayMapMusic);
     }
 }
@@ -753,7 +759,7 @@ static void CB2_EndMarowakBattle(void)
             gSpecialVar_Result = FALSE;
         else
             gSpecialVar_Result = TRUE;
-        DowngradeBadPoison();
+        UpdatePartyAfterBattle();
         SetMainCallback2(CB2_ReturnToFieldContinueScriptPlayMapMusic);
     }
 }
@@ -1043,7 +1049,7 @@ static void CB2_StartFirstBattle(void)
 static void CB2_EndFirstBattle(void)
 {
     Overworld_ClearSavedMusic();
-    DowngradeBadPoison();
+    UpdatePartyAfterBattle();
     SetMainCallback2(CB2_ReturnToFieldContinueScriptPlayMapMusic);
 }
 
@@ -1605,13 +1611,13 @@ static void CB2_EndTrainerBattle(void)
         {
             gSpecialVar_Result = FALSE;
         }
-        DowngradeBadPoison();
+        UpdatePartyAfterBattle();
         SetMainCallback2(CB2_ReturnToFieldContinueScriptPlayMapMusic);
         SetBattledTrainerFlag();
     }
     else if (TRAINER_BATTLE_PARAM.opponentA == TRAINER_SECRET_BASE)
     {
-        DowngradeBadPoison();
+        UpdatePartyAfterBattle();
         SetMainCallback2(CB2_ReturnToFieldContinueScriptPlayMapMusic);
     }
     else if (IsPlayerDefeated(gBattleOutcome))
@@ -1624,7 +1630,7 @@ static void CB2_EndTrainerBattle(void)
     else
     {
         SetMainCallback2(CB2_ReturnToFieldContinueScriptPlayMapMusic);
-        DowngradeBadPoison();
+        UpdatePartyAfterBattle();
         if (CurrentBattlePyramidLocation() == PYRAMID_LOCATION_NONE && !InTrainerHillChallenge())
         {
             RegisterTrainerInMatchCall();
@@ -1637,7 +1643,7 @@ static void CB2_EndRematchBattle(void)
 {
     if (TRAINER_BATTLE_PARAM.opponentA == TRAINER_SECRET_BASE)
     {
-        DowngradeBadPoison();
+        UpdatePartyAfterBattle();
         SetMainCallback2(CB2_ReturnToFieldContinueScriptPlayMapMusic);
     }
     else if (IsPlayerDefeated(gBattleOutcome) == TRUE)
@@ -1650,7 +1656,7 @@ static void CB2_EndRematchBattle(void)
         RegisterTrainerInMatchCall();
         SetBattledTrainersFlags();
         HandleRematchVarsOnBattleEnd();
-        DowngradeBadPoison();
+        UpdatePartyAfterBattle();
     }
 }
 

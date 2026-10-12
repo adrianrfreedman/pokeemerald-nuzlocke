@@ -46,6 +46,7 @@
 #include "metatile_behavior.h"
 #include "mirage_tower.h"
 #include "money.h"
+#include "nuzlocke.h"
 #include "new_game.h"
 #include "oras_dowse.h"
 #include "palette.h"
@@ -1959,6 +1960,8 @@ void CB2_WhiteOut(void)
 
     if (++gMain.state >= 120)
     {
+        if (Nuzlocke_TryEndRunOnWhiteOut())
+            return;
         FieldClearVBlankHBlankCallbacks();
         StopMapMusic();
         ResetSafariZoneFlag_();

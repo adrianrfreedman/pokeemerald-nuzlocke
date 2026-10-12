@@ -1,10 +1,12 @@
 #include "global.h"
 #include "battle.h"
 #include "item.h"
+#include "main.h"
 #include "nuzlocke.h"
 #include "pokedex.h"
 #include "pokemon.h"
 #include "pokemon_storage_system.h"
+#include "save.h"
 #include "string_util.h"
 #include "constants/battle.h"
 #include "constants/items.h"
@@ -15,21 +17,25 @@
 // - Dupes clause: an encounter whose evolution family is already caught
 //   doesn't use up the area, and can't be caught.
 // - Shiny clause: shinies can always be caught and don't use up the area.
-// - Pokémon that faint are moved to the graveyard box (the last box) after the
+// - Pokémon that faint are moved to the graveyard (the last two boxes) after the
 //   battle, and nothing can be moved in or out of it.
+// - Whiteout: soft brings in the first Pokémon from the PC (or resets to the last
+//   save if there is none), hard deletes the save.
 // Infinite candies is separate: Rare Candies aren't used up.
 
-#define GRAVEYARD_BOX (TOTAL_BOXES_COUNT - 1)
+#define NUM_GRAVEYARD_BOXES 2
+#define FIRST_GRAVEYARD_BOX (TOTAL_BOXES_COUNT - NUM_GRAVEYARD_BOXES)
 
-static const u8 sText_GraveyardBoxName[] = _("GRAVES");
+static const u8 sText_GraveyardBoxNames[NUM_GRAVEYARD_BOXES][BOX_NAME_LENGTH + 1] = { _("GRAVES 1"), _("GRAVES 2") };
 
 static EWRAM_DATA struct NuzlockeSave sPendingRules = {0};
 static EWRAM_DATA bool8 sCanCatch = FALSE;
 
 // Birch's speech runs before NewGameInitData clears SaveBlock3, so the choice is held here until then
-void Nuzlocke_SetPendingRules(bool32 enabled, bool32 infiniteCandies)
+void Nuzlocke_SetPendingRules(bool32 enabled, bool32 hardWhiteout, bool32 infiniteCandies)
 {
     sPendingRules.enabled = enabled;
+    sPendingRules.hardWhiteout = hardWhiteout;
     sPendingRules.infiniteCandies = infiniteCandies;
 }
 
@@ -38,7 +44,10 @@ void Nuzlocke_NewGame(void)
     gSaveBlock3Ptr->nuzlocke = sPendingRules;
     sPendingRules = (struct NuzlockeSave){0};
     if (gSaveBlock3Ptr->nuzlocke.enabled)
-        StringCopy(GetBoxNamePtr(GRAVEYARD_BOX), sText_GraveyardBoxName);
+    {
+        for (u32 i = 0; i < NUM_GRAVEYARD_BOXES; i++)
+            StringCopy(GetBoxNamePtr(FIRST_GRAVEYARD_BOX + i), sText_GraveyardBoxNames[i]);
+    }
     if (gSaveBlock3Ptr->nuzlocke.infiniteCandies)
         AddBagItem(ITEM_RARE_CANDY, 1);
 }
@@ -114,7 +123,7 @@ void Nuzlocke_OnGift(enum Species species)
 
 bool32 Nuzlocke_IsGraveyardBox(u32 boxId)
 {
-    return Nuzlocke_IsEnabled() && boxId == GRAVEYARD_BOX;
+    return Nuzlocke_IsEnabled() && boxId >= FIRST_GRAVEYARD_BOX && boxId < TOTAL_BOXES_COUNT;
 }
 
 static bool32 IsFainted(struct Pokemon *mon)
@@ -124,24 +133,22 @@ static bool32 IsFainted(struct Pokemon *mon)
         && GetMonData(mon, MON_DATA_HP) == 0;
 }
 
-// Called after every battle that uses the player's own party
-void Nuzlocke_BuryFaintedPartyMons(void)
+static u32 CountAlivePartyMons(void)
 {
-    u32 i, alive = 0;
+    u32 alive = 0;
 
-    if (!Nuzlocke_IsEnabled() || (gBattleTypeFlags & BATTLE_TYPE_FRONTIER))
-        return;
-    for (i = 0; i < PARTY_SIZE; i++)
+    for (u32 i = 0; i < PARTY_SIZE; i++)
     {
         struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][i];
         if (GetMonData(mon, MON_DATA_SPECIES) != SPECIES_NONE && !GetMonData(mon, MON_DATA_IS_EGG) && !IsFainted(mon))
             alive++;
     }
-    // ponytail: a whiteout keeps the vanilla heal for now, until the whiteout rule is decided
-    if (alive == 0)
-        return;
+    return alive;
+}
 
-    for (i = 0; i < PARTY_SIZE; i++)
+static void BuryFaintedPartyMons(void)
+{
+    for (u32 i = 0; i < PARTY_SIZE; i++)
     {
         struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][i];
         enum Item item = GetMonData(mon, MON_DATA_HELD_ITEM);
@@ -153,12 +160,13 @@ void Nuzlocke_BuryFaintedPartyMons(void)
             item = ITEM_NONE;
             SetMonData(mon, MON_DATA_HELD_ITEM, &item);
         }
-        // A full graveyard (30 graves) just loses the Pokémon
-        for (u32 pos = 0; pos < IN_BOX_COUNT; pos++)
+        // A full graveyard (60 graves) just loses the Pokémon
+        for (u32 grave = 0; grave < NUM_GRAVEYARD_BOXES * IN_BOX_COUNT; grave++)
         {
-            if (GetBoxMonDataAt(GRAVEYARD_BOX, pos, MON_DATA_SPECIES) == SPECIES_NONE)
+            u32 boxId = FIRST_GRAVEYARD_BOX + grave / IN_BOX_COUNT, pos = grave % IN_BOX_COUNT;
+            if (GetBoxMonDataAt(boxId, pos, MON_DATA_SPECIES) == SPECIES_NONE)
             {
-                SetBoxMonAt(GRAVEYARD_BOX, pos, &mon->box);
+                SetBoxMonAt(boxId, pos, &mon->box);
                 break;
             }
         }
@@ -166,4 +174,53 @@ void Nuzlocke_BuryFaintedPartyMons(void)
     }
     CompactPartySlots();
     CalculatePlayerPartyCount();
+}
+
+// Called after every battle that uses the player's own party. A whiteout is handled by Nuzlocke_TryEndRunOnWhiteOut.
+void Nuzlocke_BuryFaintedPartyMons(void)
+{
+    if (Nuzlocke_IsEnabled() && !(gBattleTypeFlags & BATTLE_TYPE_FRONTIER) && CountAlivePartyMons() > 0)
+        BuryFaintedPartyMons();
+}
+
+static bool32 TryWithdrawFirstStoredMon(void)
+{
+    for (u32 boxId = 0; boxId < FIRST_GRAVEYARD_BOX; boxId++)
+    {
+        for (u32 pos = 0; pos < IN_BOX_COUNT; pos++)
+        {
+            struct BoxPokemon *boxMon = GetBoxedMonPtr(boxId, pos);
+            if (GetBoxMonData(boxMon, MON_DATA_SPECIES) == SPECIES_NONE || GetBoxMonData(boxMon, MON_DATA_IS_EGG))
+                continue;
+            for (u32 slot = 0; slot < PARTY_SIZE; slot++)
+            {
+                if (GetMonData(&gParties[B_TRAINER_PLAYER][slot], MON_DATA_SPECIES) == SPECIES_NONE)
+                {
+                    BoxMonToMon(boxMon, &gParties[B_TRAINER_PLAYER][slot]);
+                    ZeroBoxMonAt(boxId, pos);
+                    CalculatePlayerPartyCount();
+                    return TRUE;
+                }
+            }
+            return FALSE;
+        }
+    }
+    return FALSE;
+}
+
+// Buries the party on a whiteout. Returns TRUE if the run is over and the game was reset.
+bool32 Nuzlocke_TryEndRunOnWhiteOut(void)
+{
+    if (!Nuzlocke_IsEnabled())
+        return FALSE;
+    BuryFaintedPartyMons();
+    // Some Pokémon can sit out a lost battle, e.g. Steven's multi battle
+    if (CountAlivePartyMons() > 0)
+        return FALSE;
+    if (!gSaveBlock3Ptr->nuzlocke.hardWhiteout && TryWithdrawFirstStoredMon())
+        return FALSE;
+    if (gSaveBlock3Ptr->nuzlocke.hardWhiteout)
+        ClearSaveData();
+    DoSoftReset();
+    return TRUE;
 }

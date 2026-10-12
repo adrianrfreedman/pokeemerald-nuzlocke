@@ -128,7 +128,7 @@ TEST("Nuzlocke: A new game applies the rules chosen in Birch's speech")
     PARAMETRIZE { enabled = FALSE; infiniteCandies = TRUE; }
     ClearBag();
 
-    Nuzlocke_SetPendingRules(enabled, infiniteCandies);
+    Nuzlocke_SetPendingRules(enabled, FALSE, infiniteCandies);
     Nuzlocke_NewGame();
 
     EXPECT_EQ(Nuzlocke_IsEnabled(), enabled);
@@ -146,7 +146,7 @@ TEST("Nuzlocke: Infinite candies use the badge level caps")
     FlagClear(FLAG_BADGE01_GET);
 }
 
-#define GRAVEYARD_BOX (TOTAL_BOXES_COUNT - 1)
+#define GRAVEYARD_BOX (TOTAL_BOXES_COUNT - 2)
 
 static void GivePartyMon(u32 slot, enum Species species, u32 hp, enum Item item)
 {
@@ -211,14 +211,56 @@ TEST("Nuzlocke: Caught Pokémon are never sent to the graveyard box")
     EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 0, MON_DATA_SPECIES), SPECIES_NONE);
 }
 
-TEST("Nuzlocke: A new game names the graveyard box")
+TEST("Nuzlocke: A new game names the two graveyard boxes")
 {
-    static const u8 sGraves[] = _("GRAVES");
+    static const u8 sGraves1[] = _("GRAVES 1");
+    static const u8 sGraves2[] = _("GRAVES 2");
     ResetPokemonStorageSystem();
     ClearBag();
 
-    Nuzlocke_SetPendingRules(TRUE, FALSE);
+    Nuzlocke_SetPendingRules(TRUE, FALSE, FALSE);
     Nuzlocke_NewGame();
 
-    EXPECT_EQ(StringCompare(GetBoxNamePtr(GRAVEYARD_BOX), sGraves), 0);
+    EXPECT_EQ(StringCompare(GetBoxNamePtr(GRAVEYARD_BOX), sGraves1), 0);
+    EXPECT_EQ(StringCompare(GetBoxNamePtr(GRAVEYARD_BOX + 1), sGraves2), 0);
+    EXPECT(!Nuzlocke_IsGraveyardBox(GRAVEYARD_BOX - 1));
+    EXPECT(Nuzlocke_IsGraveyardBox(GRAVEYARD_BOX + 1));
+}
+
+TEST("Nuzlocke: The graveyard holds 60 Pokémon across two boxes")
+{
+    StartGraveyardTest(TRUE);
+    for (u32 pos = 0; pos < IN_BOX_COUNT; pos++)
+        SetBoxMonAt(GRAVEYARD_BOX, pos, &gParties[B_TRAINER_PLAYER][1].box);
+
+    Nuzlocke_BuryFaintedPartyMons();
+
+    EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX + 1, 0, MON_DATA_SPECIES), SPECIES_ZIGZAGOON);
+}
+
+// ponytail: the reset paths (hard whiteout, soft with an empty PC) call DoSoftReset, which would restart the test runner
+TEST("Nuzlocke: A soft whiteout buries the party and brings in the first Pokémon from the PC")
+{
+    struct Pokemon stored;
+    StartGraveyardTest(TRUE);
+    GivePartyMon(1, SPECIES_WURMPLE, 0, ITEM_NONE);
+    CreateRandomMon(&stored, SPECIES_POOCHYENA, 5);
+    SetBoxMonAt(0, 3, &stored.box);
+
+    EXPECT(!Nuzlocke_TryEndRunOnWhiteOut());
+
+    EXPECT_EQ(GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES), SPECIES_POOCHYENA);
+    EXPECT_EQ(GetBoxMonDataAt(0, 3, MON_DATA_SPECIES), SPECIES_NONE);
+    EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 0, MON_DATA_SPECIES), SPECIES_ZIGZAGOON);
+    EXPECT_EQ(GetBoxMonDataAt(GRAVEYARD_BOX, 1, MON_DATA_SPECIES), SPECIES_WURMPLE);
+}
+
+TEST("Nuzlocke: A whiteout with Pokémon that sat out the battle only buries the fainted ones")
+{
+    StartGraveyardTest(TRUE);
+
+    EXPECT(!Nuzlocke_TryEndRunOnWhiteOut());
+
+    EXPECT_EQ(gPartiesCount[B_TRAINER_PLAYER], 1);
+    EXPECT_EQ(GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES), SPECIES_WURMPLE);
 }

@@ -261,7 +261,8 @@ struct NuzlockeSave
 {
     u8 enabled:1;
     u8 infiniteCandies:1;
-    u8 padding:6;
+    u8 hardWhiteout:1;
+    u8 padding:5;
     u8 usedMapsecs[ROUND_BITS_TO_BYTES(MAPSEC_COUNT)];
 };
 

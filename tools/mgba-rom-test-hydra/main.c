@@ -569,6 +569,15 @@ int main(int argc, char *argv[])
     }
     if (nrunners > MAX_PROCESSES)
         nrunners = MAX_PROCESSES;
+
+    // Split the runners across machines: shard s of S runs runners s*n to s*n+n-1 of S*n.
+    int shard = getenv("TEST_SHARD") ? atoi(getenv("TEST_SHARD")) : 0;
+    int nshards = getenv("TEST_SHARDS") ? atoi(getenv("TEST_SHARDS")) : 1;
+    if (nshards < 1 || shard < 0 || shard >= nshards || nrunners * nshards > MAX_PROCESSES)
+    {
+        fprintf(stderr, "invalid TEST_SHARD/TEST_SHARDS\n");
+        exit(2);
+    }
     runners_digits = ceil(log10(nrunners));
     runners = calloc(nrunners, sizeof(*runners));
     if (!runners)
@@ -659,8 +668,8 @@ int main(int argc, char *argv[])
             else if (patchelfpid == 0)
             {
                 char n_arg[5], i_arg[5];
-                snprintf(n_arg, sizeof(n_arg), "\\x%02x", nrunners);
-                snprintf(i_arg, sizeof(i_arg), "\\x%02x", i);
+                snprintf(n_arg, sizeof(n_arg), "\\x%02x", nrunners * nshards);
+                snprintf(i_arg, sizeof(i_arg), "\\x%02x", shard * nrunners + i);
                 if (execlp("tools/patchelf/patchelf", "tools/patchelf/patchelf", rom_path, "gTestRunnerN", n_arg, "gTestRunnerI", i_arg, NULL) == -1)
                 {
                     perror("execlp patchelf failed");

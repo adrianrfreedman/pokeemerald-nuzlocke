@@ -86,8 +86,14 @@ jobs:
           GAME_VERSION: EMERALD
         run: make -j$(nproc) release
 
+  # Each shard builds the test ROM and runs a quarter of the tests. Building in
+  # each shard takes as long as building once and passing the ROM on.
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -123,13 +129,55 @@ jobs:
         env:
           GAME_VERSION: EMERALD
           TEST: 1
-        run: make -j$(nproc) check
+          TEST_SHARD: ${{ matrix.shard }}
+          TEST_SHARDS: 4
+        run: |
+          set -o pipefail
+          make -j$(nproc) check 2>&1 | tee test-${{ matrix.shard }}.log
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-${{ matrix.shard }}
+          path: test-${{ matrix.shard }}.log
+
+  # Combines the shard logs into one log and one summary.
+  test-summary:
+    if: always()
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Download logs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-log-*
+          merge-multiple: true
+
+      - name: Summarise
+        run: |
+          cat test-*.log | sed 's/\x1b\[[0-9;]*m//g' > test.log
+          {
+            echo '```'
+            awk '/^- (Tests )?[A-Z_]+: +[0-9]/ { sub(/^- (Tests )?/, ""); split($0, a, ":"); sum[a[1]] += a[2] }
+              END { for (k in sum) printf "%-22s %d\n", k ":", sum[k] }' test.log | sort
+            awk '/^  FAILED tests:/ { p = 1; next } /^$/ { p = 0 } p' test.log
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          test "${{ needs.test.result }}" = success
+
+      - name: Upload combined log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: test.log
 
   # Gate job: satisfies the "build" branch protection rule.
   # Passes only when all parallel build/test jobs succeed.
   build:
     runs-on: ubuntu-latest
-    needs: [build-emerald, release, test]
+    needs: [build-emerald, release, test-summary]
     steps:
       - name: All builds passed
         run: echo "All builds and tests passed."
